@@ -43,6 +43,7 @@ export default function UploadPagina() {
   const [bestand, setBestand] = useState<File | null>(null);
   const [overDropzone, setOverDropzone] = useState(false);
   const [bezig, setBezig] = useState(false);
+  const [verwijderBezig, setVerwijderBezig] = useState<string | null>(null);
   const [fout, setFout] = useState<string | null>(null);
   const [rijen, setRijen] = useState<Rij[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -146,6 +147,32 @@ export default function UploadPagina() {
       })
     });
     await laadRijen();
+  }
+
+  async function verwijderen(r: Rij) {
+    if (gebruiker === "laden" || !gebruiker) return;
+    const bevestigd = window.confirm(
+      `Weet je zeker dat je "${r.nummer}" (€ ${
+        r.bedrag_ex_btw !== null ? r.bedrag_ex_btw.toLocaleString("nl-BE") : "?"
+      }) wil verwijderen? Dit kan niet ongedaan gemaakt worden.`
+    );
+    if (!bevestigd) return;
+
+    setVerwijderBezig(r.id);
+    try {
+      const res = await fetch(`/api/upload/${r.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${gebruiker.accessToken}` }
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        alert(json.error || "Verwijderen is mislukt.");
+        return;
+      }
+      setRijen((huidig) => huidig.filter((x) => x.id !== r.id));
+    } finally {
+      setVerwijderBezig(null);
+    }
   }
 
   async function bekijkBestand(id: string) {
@@ -307,7 +334,16 @@ export default function UploadPagina() {
                   ? `€ ${r.bedrag_ex_btw.toLocaleString("nl-BE", { minimumFractionDigits: 2 })}`
                   : "— klik om in te vullen"}
               </div>
-              <span className="badge">bewerken ✎</span>
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 4 }}>
+                <span className="badge">bewerken ✎</span>
+                <span
+                  className="badge"
+                  style={{ cursor: "pointer", color: "var(--danger)" }}
+                  onClick={() => verwijderen(r)}
+                >
+                  {verwijderBezig === r.id ? "bezig..." : "verwijderen 🗑"}
+                </span>
+              </div>
             </div>
           </div>
         ))}
