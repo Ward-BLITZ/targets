@@ -1,10 +1,10 @@
-import "./globals.css";
 import type { Metadata } from "next";
+import "./globals.css";
 import TopBar from "./TopBar";
 
 export const metadata: Metadata = {
   title: "Blitz Omzet Tracker",
-  description: "Facturen en offertes uploaden en targets bijhouden"
+  description: "Facturen, offertes en targets bijhouden."
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

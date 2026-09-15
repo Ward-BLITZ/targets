@@ -4,22 +4,19 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
-export type IngelogdeGebruiker = {
-  email: string;
-  naam: string;
-  accessToken: string;
-};
+export type GebruikerSessie = { email: string; naam: string; accessToken: string };
 
-// Client-hook: haalt de ingelogde gebruiker op en stuurt naar /login als er
-// geen sessie is. Retourneert null zolang het nog aan het laden is.
-export function useGebruiker(): IngelogdeGebruiker | null | "laden" {
-  const [gebruiker, setGebruiker] = useState<IngelogdeGebruiker | null | "laden">("laden");
+// Client-side hook: haalt de ingelogde gebruiker op en stuurt naar /login
+// als er geen sessie is. Zelfde Supabase Auth-account als het dashboard.
+export function useGebruiker(): GebruikerSessie | null | "laden" {
+  const [gebruiker, setGebruiker] = useState<GebruikerSessie | null | "laden">("laden");
   const router = useRouter();
 
   useEffect(() => {
     let actief = true;
 
-    supabase.auth.getSession().then(({ data }) => {
+    async function laadSessie() {
+      const { data } = await supabase.auth.getSession();
       if (!actief) return;
       const sessie = data.session;
       if (!sessie) {
@@ -27,22 +24,20 @@ export function useGebruiker(): IngelogdeGebruiker | null | "laden" {
         router.replace("/login");
         return;
       }
-      const meta = (sessie.user.user_metadata || {}) as Record<string, unknown>;
+      const meta = (sessie.user.user_metadata || {}) as Record<string, any>;
       const naam =
-        (meta.naam as string) ||
-        (meta.voornaam
-          ? `${meta.voornaam as string} ${(meta.achternaam as string) || ""}`.trim()
-          : null) ||
-        sessie.user.email?.split("@")[0] ||
-        "Onbekend";
+        meta.naam ||
+        [meta.voornaam, meta.achternaam].filter(Boolean).join(" ") ||
+        (sessie.user.email ? sessie.user.email.split("@")[0] : "Onbekend");
       setGebruiker({
         email: sessie.user.email || "",
         naam,
         accessToken: sessie.access_token
       });
-    });
+    }
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, sessie) => {
+    laadSessie();
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, sessie) => {
       if (!sessie) {
         setGebruiker(null);
         router.replace("/login");
@@ -51,7 +46,7 @@ export function useGebruiker(): IngelogdeGebruiker | null | "laden" {
 
     return () => {
       actief = false;
-      listener.subscription.unsubscribe();
+      sub.subscription.unsubscribe();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

@@ -5,7 +5,9 @@ import { periodeNaarBereik } from "@/lib/periode";
 export const runtime = "nodejs";
 
 // Combineert de targets van de gebruiker met de werkelijk ingeboekte omzet
-// (facturen, geen offertes) binnen elke periode, per categorie.
+// (facturen, geen offertes) binnen elke periode, per categorie. Gebruikt de
+// zelf-ingevulde factuurdatum (niet het moment van invoeren) om te bepalen
+// of een factuur binnen de doelperiode valt.
 export async function GET(req: NextRequest) {
   const gebruiker = await getGebruikerUitToken(req.headers.get("authorization"));
   if (!gebruiker) {
@@ -21,7 +23,7 @@ export async function GET(req: NextRequest) {
 
   const { data: facturen, error: facturenError } = await admin
     .from("omzet_uploads")
-    .select("categorie, bedrag_ex_btw, created_at, geupload_door_email")
+    .select("categorie, bedrag_ex_btw, datum, geupload_door_email")
     .eq("type", "factuur")
     .not("bedrag_ex_btw", "is", null);
   if (facturenError) return NextResponse.json({ error: facturenError.message }, { status: 500 });
@@ -31,8 +33,8 @@ export async function GET(req: NextRequest) {
     const relevanteFacturen = (facturen || []).filter((f) => {
       if (f.categorie !== target.categorie) return false;
       if (!alle && f.geupload_door_email !== gebruiker.email) return false;
-      if (!bereik) return false;
-      const datum = new Date(f.created_at);
+      if (!bereik || !f.datum) return false;
+      const datum = new Date(f.datum);
       return datum >= bereik.start && datum < bereik.eind;
     });
     const werkelijk = relevanteFacturen.reduce((som, f) => som + (Number(f.bedrag_ex_btw) || 0), 0);

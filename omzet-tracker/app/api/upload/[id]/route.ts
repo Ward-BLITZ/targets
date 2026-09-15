@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin, getGebruikerUitToken } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
+const BUCKET = "omzet-documenten";
 
-// Laat de gebruiker het automatisch gevonden bedrag (of categorie/type)
-// achteraf corrigeren, bv. als de extractie het mis had of niks vond.
+// Laat de gebruiker nummer, datum, bedrag, type of categorie achteraf
+// corrigeren.
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const gebruiker = await getGebruikerUitToken(req.headers.get("authorization"));
   if (!gebruiker) {
@@ -14,9 +15,14 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const body = await req.json().catch(() => ({}));
   const update: Record<string, unknown> = {};
 
-  if (typeof body.bedragExBtw === "number") {
+  if (typeof body.bedragExBtw === "number" && Number.isFinite(body.bedragExBtw)) {
     update.bedrag_ex_btw = body.bedragExBtw;
-    update.status = "handmatig";
+  }
+  if (typeof body.nummer === "string" && body.nummer.trim()) {
+    update.nummer = body.nummer.trim();
+  }
+  if (typeof body.datum === "string" && !Number.isNaN(Date.parse(body.datum))) {
+    update.datum = body.datum;
   }
   if (body.type === "offerte" || body.type === "factuur") {
     update.type = body.type;
@@ -47,6 +53,17 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     return NextResponse.json({ error: "Niet ingelogd." }, { status: 401 });
   }
   const admin = getSupabaseAdmin();
+
+  const { data: rij } = await admin
+    .from("omzet_uploads")
+    .select("bestand_pad")
+    .eq("id", params.id)
+    .single();
+
+  if (rij?.bestand_pad) {
+    await admin.storage.from(BUCKET).remove([rij.bestand_pad]);
+  }
+
   const { error } = await admin.from("omzet_uploads").delete().eq("id", params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });

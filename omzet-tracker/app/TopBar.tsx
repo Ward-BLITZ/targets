@@ -8,26 +8,41 @@ export default function TopBar() {
   const pathname = usePathname();
   const router = useRouter();
 
-  if (pathname === "/login") return null;
-
   async function uitloggen() {
     await supabase.auth.signOut();
     router.replace("/login");
   }
 
+  if (pathname === "/login") return null;
+
+  const linkStijl = (actief: boolean) => ({
+    color: actief ? "var(--tx)" : "var(--tx3)",
+    fontWeight: actief ? 700 : 400,
+    textDecoration: "none",
+    fontSize: 14
+  });
+
   return (
-    <div className="topbar">
-      <span className="logo">BLITZ · OMZET</span>
-      <nav>
-        <Link href="/upload" className={pathname === "/upload" ? "actief" : ""}>
-          Upload
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        maxWidth: 720,
+        margin: "0 auto",
+        padding: "20px 16px 0"
+      }}
+    >
+      <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+        <strong style={{ color: "var(--tx)" }}>Blitz Omzet Tracker</strong>
+        <Link href="/upload" style={linkStijl(pathname === "/upload")}>
+          Omzet
         </Link>
-        <Link href="/targets" className={pathname === "/targets" ? "actief" : ""}>
-          Targets &amp; voortgang
+        <Link href="/targets" style={linkStijl(pathname === "/targets")}>
+          Targets
         </Link>
-      </nav>
-      <div className="spacer" />
-      <button className="btn" onClick={uitloggen}>
+      </div>
+      <button className="btn" onClick={uitloggen} style={{ fontSize: 13 }}>
         Uitloggen
       </button>
     </div>
