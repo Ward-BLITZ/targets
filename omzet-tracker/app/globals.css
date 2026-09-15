@@ -1,0 +1,179 @@
+:root {
+  --green: #00dfa3;
+  --bg: #ffffff;
+  --bg2: #f6f8f7;
+  --tx: #16241f;
+  --tx2: #55645e;
+  --tx3: #8a978f;
+  --bd: #e3e8e5;
+  --r: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  background: var(--bg2);
+  color: var(--tx);
+}
+
+a {
+  color: inherit;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 14px 24px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--bd);
+}
+
+.topbar .logo {
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: var(--green);
+}
+
+.topbar nav {
+  display: flex;
+  gap: 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--tx2);
+}
+
+.topbar nav a.actief {
+  color: var(--tx);
+  border-bottom: 2px solid var(--green);
+  padding-bottom: 2px;
+}
+
+.topbar .spacer {
+  flex: 1;
+}
+
+main {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 28px 20px 60px;
+}
+
+.card {
+  background: var(--bg);
+  border: 1px solid var(--bd);
+  border-radius: var(--r);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.dropzone {
+  border: 2px dashed var(--bd);
+  border-radius: var(--r);
+  padding: 32px;
+  text-align: center;
+  color: var(--tx3);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.dropzone.over {
+  border-color: var(--green);
+  background: rgba(0, 223, 163, 0.06);
+}
+
+.field {
+  margin-bottom: 14px;
+}
+
+.field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--tx2);
+  margin-bottom: 5px;
+}
+
+.field input,
+.field select {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--bd);
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--bd);
+  background: var(--bg);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btn.primary {
+  background: var(--green);
+  border-color: var(--green);
+  color: #04241a;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.rij {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--bd);
+  font-size: 14px;
+}
+
+.rij:last-child {
+  border-bottom: none;
+}
+
+.badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: rgba(0, 223, 163, 0.12);
+  color: #00895f;
+}
+
+.badge.mislukt {
+  background: rgba(163, 45, 45, 0.12);
+  color: #a32d2d;
+}
+
+.progress-outer {
+  background: var(--bd);
+  border-radius: 6px;
+  height: 10px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+
+.progress-inner {
+  background: var(--green);
+  height: 100%;
+}
+
+.error {
+  color: #a32d2d;
+  font-size: 13px;
+  margin-top: 8px;
+}
