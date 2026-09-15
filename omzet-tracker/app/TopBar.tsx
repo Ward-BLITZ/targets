@@ -1,12 +1,37 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
+const THEMA_SLEUTEL = "blitz-omzet-thema";
+
 export default function TopBar() {
   const pathname = usePathname();
   const router = useRouter();
+  const [thema, setThema] = useState<"dark" | "light">("dark");
+
+  useEffect(() => {
+    try {
+      const opgeslagen = localStorage.getItem(THEMA_SLEUTEL);
+      if (opgeslagen === "light" || opgeslagen === "dark") {
+        setThema(opgeslagen);
+        document.documentElement.setAttribute("data-theme", opgeslagen);
+      }
+    } catch (e) {
+      // localStorage niet beschikbaar (bv. privé-venster) — gewoon donker laten staan
+    }
+  }, []);
+
+  function wisselThema() {
+    const nieuw = thema === "dark" ? "light" : "dark";
+    setThema(nieuw);
+    document.documentElement.setAttribute("data-theme", nieuw);
+    try {
+      localStorage.setItem(THEMA_SLEUTEL, nieuw);
+    } catch (e) {}
+  }
 
   async function uitloggen() {
     await supabase.auth.signOut();
@@ -42,9 +67,14 @@ export default function TopBar() {
           Targets
         </Link>
       </div>
-      <button className="btn" onClick={uitloggen} style={{ fontSize: 13 }}>
-        Uitloggen
-      </button>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button className="btn" onClick={wisselThema} style={{ fontSize: 13 }} title="Wissel tussen licht en donker">
+          {thema === "dark" ? "☀ Licht" : "🌙 Donker"}
+        </button>
+        <button className="btn" onClick={uitloggen} style={{ fontSize: 13 }}>
+          Uitloggen
+        </button>
+      </div>
     </div>
   );
 }
