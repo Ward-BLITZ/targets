@@ -55,16 +55,21 @@ export default function TopBar() {
         justifyContent: "space-between",
         maxWidth: 720,
         margin: "0 auto",
-        padding: "20px 16px 0"
+        padding: "20px 16px 0",
+        flexWrap: "wrap",
+        gap: 10
       }}
     >
-      <div style={{ display: "flex", gap: 20, alignItems: "center" }}>
+      <div style={{ display: "flex", gap: 20, alignItems: "center", flexWrap: "wrap" }}>
         <strong style={{ color: "var(--tx)" }}>Blitz Omzet Tracker</strong>
         <Link href="/upload" style={linkStijl(pathname === "/upload")}>
           Omzet
         </Link>
         <Link href="/targets" style={linkStijl(pathname === "/targets")}>
           Targets
+        </Link>
+        <Link href="/activiteit" style={linkStijl(pathname === "/activiteit")}>
+          Activiteit
         </Link>
       </div>
       <div style={{ display: "flex", gap: 8 }}>
