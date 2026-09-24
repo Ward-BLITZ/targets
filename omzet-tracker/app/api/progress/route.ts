@@ -7,7 +7,9 @@ export const runtime = "nodejs";
 // Combineert de targets van de gebruiker met de werkelijk ingeboekte omzet
 // (facturen, geen offertes) binnen elke periode, per categorie. Gebruikt de
 // zelf-ingevulde factuurdatum (niet het moment van invoeren) om te bepalen
-// of een factuur binnen de doelperiode valt.
+// of een factuur binnen de doelperiode valt. Geeft ook de individuele
+// facturen mee terug, zodat je op een target kan klikken om te zien welke
+// facturen/orders eraan meetellen.
 export async function GET(req: NextRequest) {
   const gebruiker = await getGebruikerUitToken(req.headers.get("authorization"));
   if (!gebruiker) {
@@ -23,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   const { data: facturen, error: facturenError } = await admin
     .from("omzet_uploads")
-    .select("categorie, bedrag_ex_btw, datum, geupload_door_email")
+    .select("id, nummer, categorie, bedrag_ex_btw, datum, bestandsnaam, notitie, geupload_door_email, geupload_door_naam")
     .eq("type", "factuur")
     .not("bedrag_ex_btw", "is", null);
   if (facturenError) return NextResponse.json({ error: facturenError.message }, { status: 500 });
@@ -48,7 +50,18 @@ export async function GET(req: NextRequest) {
       doelBedrag: doel,
       werkelijkBedrag: werkelijk,
       percentage: doel > 0 ? Math.round((werkelijk / doel) * 1000) / 10 : 0,
-      aantalFacturen: relevanteFacturen.length
+      aantalFacturen: relevanteFacturen.length,
+      facturen: relevanteFacturen
+        .sort((a, b) => (a.datum < b.datum ? 1 : -1))
+        .map((f) => ({
+          id: f.id,
+          nummer: f.nummer,
+          datum: f.datum,
+          bedragExBtw: Number(f.bedrag_ex_btw) || 0,
+          bestandsnaam: f.bestandsnaam,
+          notitie: f.notitie,
+          geuploadDoorNaam: f.geupload_door_naam
+        }))
     };
   });
 

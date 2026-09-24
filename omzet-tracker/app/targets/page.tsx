@@ -3,6 +3,16 @@
 import { useEffect, useState } from "react";
 import { useGebruiker } from "@/lib/useGebruiker";
 
+type Factuur = {
+  id: string;
+  nummer: string;
+  datum: string;
+  bedragExBtw: number;
+  bestandsnaam: string | null;
+  notitie: string | null;
+  geuploadDoorNaam: string;
+};
+
 type Voortgang = {
   id: string;
   categorie: string;
@@ -11,6 +21,7 @@ type Voortgang = {
   werkelijkBedrag: number;
   percentage: number;
   aantalFacturen: number;
+  facturen: Factuur[];
 };
 
 const CATEGORIE_LABEL: Record<string, string> = {
@@ -35,6 +46,7 @@ export default function TargetsPagina() {
   const [fout, setFout] = useState<string | null>(null);
   const [bezig, setBezig] = useState(false);
   const [voortgang, setVoortgang] = useState<Voortgang[]>([]);
+  const [opengeklapt, setOpengeklapt] = useState<string | null>(null);
 
   async function laadVoortgang() {
     if (gebruiker === "laden" || !gebruiker) return;
@@ -106,6 +118,19 @@ export default function TargetsPagina() {
     }
   }
 
+  async function bekijkBestand(id: string) {
+    if (gebruiker === "laden" || !gebruiker) return;
+    const res = await fetch(`/api/upload/${id}/bestand`, {
+      headers: { Authorization: `Bearer ${gebruiker.accessToken}` }
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      alert(json.error || "Kon het bestand niet openen.");
+      return;
+    }
+    window.open(json.url, "_blank");
+  }
+
   if (gebruiker === "laden") return <p>Bezig met laden...</p>;
   if (!gebruiker) return null;
 
@@ -160,14 +185,24 @@ export default function TargetsPagina() {
 
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Voortgang</h3>
+        <p style={{ fontSize: 12, color: "var(--tx3)", marginTop: -6 }}>
+          Klik op een target om de facturen/orders te zien die meetellen.
+        </p>
         {voortgang.length === 0 && (
           <p style={{ color: "var(--tx3)" }}>Nog geen targets ingesteld.</p>
         )}
         {voortgang.map((v) => (
           <div key={v.id} style={{ marginBottom: 16 }}>
-            <div className="rij" style={{ border: "none", padding: "0 0 4px" }}>
+            <div
+              className="rij"
+              style={{ border: "none", padding: "0 0 4px", cursor: "pointer" }}
+              onClick={() => setOpengeklapt(opengeklapt === v.id ? null : v.id)}
+            >
               <span>
-                <strong>{CATEGORIE_LABEL[v.categorie] || v.categorie}</strong> · {v.periode}
+                <strong>{CATEGORIE_LABEL[v.categorie] || v.categorie}</strong> · {v.periode}{" "}
+                <span style={{ color: "var(--tx3)", fontSize: 12 }}>
+                  {opengeklapt === v.id ? "▲" : "▼"}
+                </span>
               </span>
               <span>
                 € {v.werkelijkBedrag.toLocaleString("nl-BE", { maximumFractionDigits: 0 })} / €{" "}
@@ -184,6 +219,45 @@ export default function TargetsPagina() {
             <div style={{ fontSize: 11, color: "var(--tx3)", marginTop: 3 }}>
               {v.aantalFacturen} factu{v.aantalFacturen === 1 ? "ur" : "ren"} meegeteld
             </div>
+
+            {opengeklapt === v.id && (
+              <div style={{ marginTop: 10, background: "var(--bg2)", borderRadius: 8, padding: "8px 12px" }}>
+                {v.facturen.length === 0 && (
+                  <p style={{ color: "var(--tx3)", fontSize: 13, margin: "4px 0" }}>
+                    Geen facturen binnen deze periode.
+                  </p>
+                )}
+                {v.facturen.map((f) => (
+                  <div className="rij" key={f.id} style={{ padding: "8px 0" }}>
+                    <div>
+                      <strong>{f.nummer}</strong>{" "}
+                      <span style={{ color: "var(--tx3)", fontSize: 12 }}>
+                        · {f.datum} · {f.geuploadDoorNaam}
+                        {f.notitie ? ` · ${f.notitie}` : ""}
+                      </span>
+                      {f.bestandsnaam && (
+                        <>
+                          {" · "}
+                          <a
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              bekijkBestand(f.id);
+                            }}
+                          >
+                            {f.bestandsnaam}
+                          </a>
+                        </>
+                      )}
+                    </div>
+                    <div style={{ fontWeight: 700 }}>
+                      € {f.bedragExBtw.toLocaleString("nl-BE", { minimumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
