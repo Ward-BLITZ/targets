@@ -4,7 +4,8 @@ import { getSupabaseAdmin, getGebruikerUitToken } from "@/lib/supabaseAdmin";
 export const runtime = "nodejs";
 
 // Vooral gebruikt om een "te bevestigen" visit achteraf op "ja" of "nee" te
-// zetten, maar laat ook toe om nummer/naam/kwalitatief/minuten te corrigeren.
+// zetten, maar laat ook toe om naam/categorie/kwalitatief/minuten/datum te
+// corrigeren.
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const gebruiker = await getGebruikerUitToken(req.headers.get("authorization"));
   if (!gebruiker) {
@@ -16,10 +17,18 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   if (["ja", "nee", "te_bevestigen"].includes(body.visit)) update.visit = body.visit;
   if (typeof body.naam === "string" && body.naam.trim()) update.naam = body.naam.trim();
+  if (["B2B", "B2C"].includes(body.categorie)) update.categorie = body.categorie;
   if (typeof body.datum === "string" && !Number.isNaN(Date.parse(body.datum))) {
     update.datum = body.datum;
   }
-  if (typeof body.kwalitatief === "boolean") update.kwalitatief = body.kwalitatief;
+  if (typeof body.kwalitatief === "boolean") {
+    update.kwalitatief = body.kwalitatief;
+    if (body.kwalitatief) {
+      update.niet_kwalitatief_reden = null;
+    } else if (typeof body.nietKwalitatiefReden === "string" && body.nietKwalitatiefReden.trim()) {
+      update.niet_kwalitatief_reden = body.nietKwalitatiefReden.trim();
+    }
+  }
   if (typeof body.minuten === "number" && Number.isFinite(body.minuten)) {
     update.minuten = body.minuten;
   }

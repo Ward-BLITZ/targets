@@ -4,6 +4,7 @@ import { getSupabaseAdmin, getGebruikerUitToken } from "@/lib/supabaseAdmin";
 export const runtime = "nodejs";
 
 const GELDIGE_VISIT = ["ja", "nee", "te_bevestigen"] as const;
+const GELDIGE_CATEGORIEEN = ["B2B", "B2C"] as const;
 
 export async function POST(req: NextRequest) {
   const gebruiker = await getGebruikerUitToken(req.headers.get("authorization"));
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const { datum, naam, kwalitatief, minuten, visit } = body || {};
+  const { datum, naam, categorie, kwalitatief, nietKwalitatiefReden, minuten, visit } = body || {};
 
   if (!datum || Number.isNaN(Date.parse(datum))) {
     return NextResponse.json({ error: "Ongeldige of ontbrekende datum." }, { status: 400 });
@@ -20,12 +21,22 @@ export async function POST(req: NextRequest) {
   if (typeof naam !== "string" || !naam.trim()) {
     return NextResponse.json({ error: "Naam is verplicht." }, { status: 400 });
   }
+  if (!GELDIGE_CATEGORIEEN.includes(categorie)) {
+    return NextResponse.json({ error: "Ongeldige categorie (B2B/B2C)." }, { status: 400 });
+  }
   if (!GELDIGE_VISIT.includes(visit)) {
     return NextResponse.json({ error: "Ongeldige visit-status." }, { status: 400 });
   }
   const minutenGetal = Number(minuten);
   if (!Number.isFinite(minutenGetal) || minutenGetal < 0) {
     return NextResponse.json({ error: "Ongeldig aantal minuten." }, { status: 400 });
+  }
+  const isKwalitatief = !!kwalitatief;
+  if (!isKwalitatief && (typeof nietKwalitatiefReden !== "string" || !nietKwalitatiefReden.trim())) {
+    return NextResponse.json(
+      { error: "Geef aan waarom de call niet kwalitatief was (voicemail of andere reden)." },
+      { status: 400 }
+    );
   }
 
   const admin = getSupabaseAdmin();
@@ -36,7 +47,9 @@ export async function POST(req: NextRequest) {
       gebruiker_naam: gebruiker.naam,
       datum,
       naam: naam.trim(),
-      kwalitatief: !!kwalitatief,
+      categorie,
+      kwalitatief: isKwalitatief,
+      niet_kwalitatief_reden: isKwalitatief ? null : nietKwalitatiefReden.trim(),
       minuten: minutenGetal,
       visit
     })

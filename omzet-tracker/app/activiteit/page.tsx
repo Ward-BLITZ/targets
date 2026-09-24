@@ -8,7 +8,9 @@ type Call = {
   id: string;
   datum: string;
   naam: string;
+  categorie: "B2B" | "B2C";
   kwalitatief: boolean;
+  niet_kwalitatief_reden: string | null;
   minuten: number;
   visit: "ja" | "nee" | "te_bevestigen";
 };
@@ -75,7 +77,10 @@ export default function ActiviteitPagina() {
   // Call-formulier
   const [callDatum, setCallDatum] = useState(vandaag());
   const [callNaam, setCallNaam] = useState("");
+  const [callCategorie, setCallCategorie] = useState<"B2B" | "B2C">("B2B");
   const [callKwalitatief, setCallKwalitatief] = useState("nee");
+  const [callRedenType, setCallRedenType] = useState<"voicemail" | "andere">("voicemail");
+  const [callRedenAnders, setCallRedenAnders] = useState("");
   const [callMinuten, setCallMinuten] = useState("");
   const [callVisit, setCallVisit] = useState<"ja" | "nee" | "te_bevestigen">("nee");
   const [callBezig, setCallBezig] = useState(false);
@@ -162,6 +167,19 @@ export default function ActiviteitPagina() {
       setCallFout("Vul een geldig aantal minuten in.");
       return;
     }
+    let nietKwalitatiefReden: string | undefined;
+    if (callKwalitatief === "nee") {
+      if (callRedenType === "andere") {
+        if (!callRedenAnders.trim()) {
+          setCallFout("Vul in wat de andere reden was.");
+          return;
+        }
+        nietKwalitatiefReden = callRedenAnders.trim();
+      } else {
+        nietKwalitatiefReden = "Voicemail";
+      }
+    }
+
     setCallBezig(true);
     try {
       const res = await fetch("/api/calls", {
@@ -173,7 +191,9 @@ export default function ActiviteitPagina() {
         body: JSON.stringify({
           datum: callDatum,
           naam: callNaam.trim(),
+          categorie: callCategorie,
           kwalitatief: callKwalitatief === "ja",
+          nietKwalitatiefReden,
           minuten: minutenGetal,
           visit: callVisit
         })
@@ -186,6 +206,8 @@ export default function ActiviteitPagina() {
       setCallNaam("");
       setCallMinuten("");
       setCallKwalitatief("nee");
+      setCallRedenType("voicemail");
+      setCallRedenAnders("");
       setCallVisit("nee");
       setCallDatum(vandaag());
       await laadAlles();
@@ -329,8 +351,13 @@ export default function ActiviteitPagina() {
 
     return {
       start,
-      eindWeergave: totalenModus === "aangepast" ? aangepastEind : new Date(new Date(eind).getTime() - 86400000).toISOString().slice(0, 10),
+      eindWeergave:
+        totalenModus === "aangepast"
+          ? aangepastEind
+          : new Date(new Date(eind).getTime() - 86400000).toISOString().slice(0, 10),
       callsTotaal: callsP.length,
+      callsB2B: callsP.filter((c) => c.categorie === "B2B").length,
+      callsB2C: callsP.filter((c) => c.categorie === "B2C").length,
       callsKwalitatief: callsP.filter((c) => c.kwalitatief).length,
       gemMinuten: callsP.length > 0 ? Math.round((minutenTotaal / callsP.length) * 10) / 10 : 0,
       visitsJa: callsP.filter((c) => c.visit === "ja").length,
@@ -451,8 +478,9 @@ export default function ActiviteitPagina() {
         </p>
 
         <div style={{ fontSize: 13, color: "var(--tx2)", lineHeight: 1.9 }}>
-          Calls totaal: <strong>{totalenPeriode.callsTotaal}</strong> — waarvan kwalitatief:{" "}
-          <strong>{totalenPeriode.callsKwalitatief}</strong> (gem. {totalenPeriode.gemMinuten} min)
+          Calls totaal: <strong>{totalenPeriode.callsTotaal}</strong> (B2B: {totalenPeriode.callsB2B}, B2C:{" "}
+          {totalenPeriode.callsB2C}) — waarvan kwalitatief: <strong>{totalenPeriode.callsKwalitatief}</strong> (gem.{" "}
+          {totalenPeriode.gemMinuten} min)
           <br />
           Visits uit calls: <strong>{totalenPeriode.visitsJa}</strong> ja, {totalenPeriode.visitsNee} nee
           {totalenPeriode.visitsTeBevestigen > 0 ? `, ${totalenPeriode.visitsTeBevestigen} te bevestigen` : ""}
@@ -478,12 +506,40 @@ export default function ActiviteitPagina() {
           />
         </div>
         <div className="field">
+          <label>Categorie</label>
+          <select value={callCategorie} onChange={(e) => setCallCategorie(e.target.value as any)}>
+            <option value="B2B">B2B</option>
+            <option value="B2C">B2C</option>
+          </select>
+        </div>
+        <div className="field">
           <label>Kwalitatief?</label>
           <select value={callKwalitatief} onChange={(e) => setCallKwalitatief(e.target.value)}>
             <option value="ja">Ja</option>
-            <option value="nee">Nee (bv. voicemail)</option>
+            <option value="nee">Nee</option>
           </select>
         </div>
+        {callKwalitatief === "nee" && (
+          <>
+            <div className="field">
+              <label>Reden</label>
+              <select value={callRedenType} onChange={(e) => setCallRedenType(e.target.value as any)}>
+                <option value="voicemail">Voicemail</option>
+                <option value="andere">Andere</option>
+              </select>
+            </div>
+            {callRedenType === "andere" && (
+              <div className="field">
+                <label>Welke reden?</label>
+                <input
+                  value={callRedenAnders}
+                  onChange={(e) => setCallRedenAnders(e.target.value)}
+                  placeholder="bv. niet opgenomen, verkeerd nummer, ..."
+                />
+              </div>
+            )}
+          </>
+        )}
         <div className="field">
           <label>Aantal minuten gebeld</label>
           <input value={callMinuten} onChange={(e) => setCallMinuten(e.target.value)} placeholder="bv. 4" />
@@ -509,7 +565,7 @@ export default function ActiviteitPagina() {
             <div className="rij" key={c.id}>
               <div>
                 <strong>{c.naam}</strong>{" "}
-                <span style={{ color: "var(--tx3)" }}>· {c.datum}</span>
+                <span style={{ color: "var(--tx3)" }}>· {c.datum} · {c.categorie}</span>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
                 <button className="btn" onClick={() => bevestigVisit(c, "ja")}>
@@ -561,8 +617,9 @@ export default function ActiviteitPagina() {
             <div>
               <strong>{c.naam}</strong>{" "}
               <span style={{ color: "var(--tx3)" }}>
-                · {c.datum} · {c.kwalitatief ? "kwalitatief" : "niet-kwalitatief"} · {c.minuten} min · visit:{" "}
-                {c.visit === "te_bevestigen" ? "te bevestigen" : c.visit}
+                · {c.datum} · {c.categorie} ·{" "}
+                {c.kwalitatief ? "kwalitatief" : `niet-kwalitatief (${c.niet_kwalitatief_reden || "onbekend"})`} ·{" "}
+                {c.minuten} min · visit: {c.visit === "te_bevestigen" ? "te bevestigen" : c.visit}
               </span>
             </div>
             <span
