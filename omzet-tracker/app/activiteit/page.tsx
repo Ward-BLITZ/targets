@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useGebruiker } from "@/lib/useGebruiker";
-import { isoWeekLabel, isoWeekStart } from "@/lib/week";
+import { isoWeekLabel, maandagVanWeek, weekEindDatum } from "@/lib/week";
 
 type Call = {
   id: string;
@@ -34,6 +34,25 @@ function vandaag() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function eersteDagVanMaand() {
+  const nu = new Date();
+  return new Date(Date.UTC(nu.getFullYear(), nu.getMonth(), 1)).toISOString().slice(0, 10);
+}
+
+function eersteDagVanJaar() {
+  const nu = new Date();
+  return new Date(Date.UTC(nu.getFullYear(), 0, 1)).toISOString().slice(0, 10);
+}
+
+function ProgressBalk({ waarde, doel }: { waarde: number; doel: number }) {
+  const pct = doel > 0 ? Math.min(100, Math.round((waarde / doel) * 100)) : 0;
+  return (
+    <div className="progress-outer" style={{ marginTop: 4, marginBottom: 2 }}>
+      <div className="progress-inner" style={{ width: `${pct}%` }} />
+    </div>
+  );
+}
+
 export default function ActiviteitPagina() {
   const gebruiker = useGebruiker();
 
@@ -46,6 +65,12 @@ export default function ActiviteitPagina() {
   const [calls, setCalls] = useState<Call[]>([]);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [offerteDatums, setOfferteDatums] = useState<string[]>([]);
+
+  const [weekOffset, setWeekOffset] = useState(0);
+
+  const [totalenModus, setTotalenModus] = useState<"maand" | "jaar" | "aangepast">("maand");
+  const [aangepastStart, setAangepastStart] = useState(eersteDagVanMaand());
+  const [aangepastEind, setAangepastEind] = useState(vandaag());
 
   // Call-formulier
   const [callDatum, setCallDatum] = useState(vandaag());
@@ -240,66 +265,81 @@ export default function ActiviteitPagina() {
 
   const teBevestigen = useMemo(() => calls.filter((c) => c.visit === "te_bevestigen"), [calls]);
 
-  const weekOverzicht = useMemo(() => {
-    type WeekData = {
-      week: string;
-      weekStart: string;
-      callsTotaal: number;
-      callsKwalitatief: number;
-      minutenTotaal: number;
-      visitsJa: number;
-      visitsNee: number;
-      teBevestigen: number;
-      bezoeken: number;
-      offertes: number;
-    };
-    const map = new Map<string, WeekData>();
-
-    function pak(datum: string): WeekData {
-      const week = isoWeekLabel(datum);
-      if (!map.has(week)) {
-        map.set(week, {
-          week,
-          weekStart: isoWeekStart(datum),
-          callsTotaal: 0,
-          callsKwalitatief: 0,
-          minutenTotaal: 0,
-          visitsJa: 0,
-          visitsNee: 0,
-          teBevestigen: 0,
-          bezoeken: 0,
-          offertes: 0
-        });
-      }
-      return map.get(week)!;
-    }
-
-    for (const c of calls) {
-      const w = pak(c.datum);
-      w.callsTotaal += 1;
-      if (c.kwalitatief) w.callsKwalitatief += 1;
-      w.minutenTotaal += Number(c.minuten) || 0;
-      if (c.visit === "ja") w.visitsJa += 1;
-      else if (c.visit === "nee") w.visitsNee += 1;
-      else w.teBevestigen += 1;
-    }
-    for (const v of visits) {
-      const w = pak(v.datum);
-      w.bezoeken += 1;
-    }
-    for (const d of offerteDatums) {
-      const w = pak(d);
-      w.offertes += 1;
-    }
-
-    return Array.from(map.values())
-      .sort((a, b) => (a.weekStart < b.weekStart ? 1 : -1))
-      .slice(0, 10);
-  }, [calls, visits, offerteDatums]);
-
   const doelKwalitatiefNum = parseInt(doelenKwalitatief, 10) || 0;
   const doelVisitsNum = parseInt(doelenVisits, 10) || 0;
   const doelOffertesNum = parseInt(doelenOffertes, 10) || 0;
+
+  // Statistieken voor één specifieke week, aan de hand van het aantal weken
+  // terug (weekOffset). offset 0 = huidige week.
+  const weekData = useMemo(() => {
+    const weekStart = maandagVanWeek(weekOffset);
+    const weekEind = weekEindDatum(weekStart);
+    const binnen = (d: string) => d >= weekStart && d < weekEind;
+
+    const callsWeek = calls.filter((c) => binnen(c.datum));
+    const visitsWeek = visits.filter((v) => binnen(v.datum));
+    const offertesWeek = offerteDatums.filter((d) => binnen(d));
+
+    const callsKwalitatief = callsWeek.filter((c) => c.kwalitatief).length;
+    const minutenTotaal = callsWeek.reduce((som, c) => som + (Number(c.minuten) || 0), 0);
+    const visitsJa = callsWeek.filter((c) => c.visit === "ja").length;
+    const visitsNee = callsWeek.filter((c) => c.visit === "nee").length;
+    const visitsTeBevestigen = callsWeek.filter((c) => c.visit === "te_bevestigen").length;
+
+    return {
+      weekStart,
+      weekEind,
+      label: isoWeekLabel(weekStart),
+      callsTotaal: callsWeek.length,
+      callsKwalitatief,
+      minutenTotaal,
+      gemMinuten: callsWeek.length > 0 ? Math.round((minutenTotaal / callsWeek.length) * 10) / 10 : 0,
+      visitsJa,
+      visitsNee,
+      visitsTeBevestigen,
+      bezoeken: visitsWeek.length,
+      offertes: offertesWeek.length
+    };
+  }, [calls, visits, offerteDatums, weekOffset]);
+
+  // Totalen over een periode (deze maand / dit jaar / aangepaste periode).
+  const totalenPeriode = useMemo(() => {
+    let start: string;
+    let eind: string; // exclusief
+    if (totalenModus === "maand") {
+      start = eersteDagVanMaand();
+      const nu = new Date();
+      eind = new Date(Date.UTC(nu.getFullYear(), nu.getMonth() + 1, 1)).toISOString().slice(0, 10);
+    } else if (totalenModus === "jaar") {
+      start = eersteDagVanJaar();
+      const nu = new Date();
+      eind = new Date(Date.UTC(nu.getFullYear() + 1, 0, 1)).toISOString().slice(0, 10);
+    } else {
+      start = aangepastStart;
+      const d = new Date(aangepastEind + "T00:00:00Z");
+      d.setUTCDate(d.getUTCDate() + 1);
+      eind = d.toISOString().slice(0, 10);
+    }
+    const binnen = (d: string) => d >= start && d < eind;
+
+    const callsP = calls.filter((c) => binnen(c.datum));
+    const visitsP = visits.filter((v) => binnen(v.datum));
+    const offertesP = offerteDatums.filter((d) => binnen(d));
+    const minutenTotaal = callsP.reduce((som, c) => som + (Number(c.minuten) || 0), 0);
+
+    return {
+      start,
+      eindWeergave: totalenModus === "aangepast" ? aangepastEind : new Date(new Date(eind).getTime() - 86400000).toISOString().slice(0, 10),
+      callsTotaal: callsP.length,
+      callsKwalitatief: callsP.filter((c) => c.kwalitatief).length,
+      gemMinuten: callsP.length > 0 ? Math.round((minutenTotaal / callsP.length) * 10) / 10 : 0,
+      visitsJa: callsP.filter((c) => c.visit === "ja").length,
+      visitsNee: callsP.filter((c) => c.visit === "nee").length,
+      visitsTeBevestigen: callsP.filter((c) => c.visit === "te_bevestigen").length,
+      bezoeken: visitsP.length,
+      offertes: offertesP.length
+    };
+  }, [calls, visits, offerteDatums, totalenModus, aangepastStart, aangepastEind]);
 
   if (gebruiker === "laden") return <p>Bezig met laden...</p>;
   if (!gebruiker) return null;
@@ -327,6 +367,100 @@ export default function ActiviteitPagina() {
         <button className="btn primary" disabled={doelenBezig} onClick={doelenOpslaan}>
           {doelenBezig ? "Bezig..." : "Doelen opslaan"}
         </button>
+      </div>
+
+      <div className="card">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+          <button className="btn" onClick={() => setWeekOffset((o) => o + 1)}>
+            ← Vorige week
+          </button>
+          <h3 style={{ margin: 0 }}>
+            Week van {weekData.weekStart} ({weekData.label})
+          </h3>
+          <button className="btn" disabled={weekOffset === 0} onClick={() => setWeekOffset((o) => Math.max(0, o - 1))}>
+            Volgende week →
+          </button>
+        </div>
+        {weekOffset === 0 && (
+          <p style={{ fontSize: 12, color: "var(--tx3)", textAlign: "center", marginTop: 0 }}>Huidige week</p>
+        )}
+
+        <div style={{ fontSize: 13, color: "var(--tx2)" }}>
+          <div>
+            Kwalitatieve calls: {weekData.callsKwalitatief} / {doelKwalitatiefNum}{" "}
+            <span style={{ color: "var(--tx3)" }}>
+              ({weekData.callsTotaal} calls totaal, gem. {weekData.gemMinuten} min)
+            </span>
+          </div>
+          <ProgressBalk waarde={weekData.callsKwalitatief} doel={doelKwalitatiefNum} />
+
+          <div style={{ marginTop: 10 }}>
+            Visits: {weekData.bezoeken} / {doelVisitsNum}{" "}
+            <span style={{ color: "var(--tx3)" }}>
+              (uit calls: {weekData.visitsJa} ja, {weekData.visitsNee} nee
+              {weekData.visitsTeBevestigen > 0 ? `, ${weekData.visitsTeBevestigen} te bevestigen` : ""})
+            </span>
+          </div>
+          <ProgressBalk waarde={weekData.bezoeken} doel={doelVisitsNum} />
+
+          <div style={{ marginTop: 10 }}>
+            Offertes: {weekData.offertes} / {doelOffertesNum}
+          </div>
+          <ProgressBalk waarde={weekData.offertes} doel={doelOffertesNum} />
+        </div>
+      </div>
+
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Totalen</h3>
+        <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+          <button
+            className={`btn${totalenModus === "maand" ? " primary" : ""}`}
+            onClick={() => setTotalenModus("maand")}
+          >
+            Deze maand
+          </button>
+          <button
+            className={`btn${totalenModus === "jaar" ? " primary" : ""}`}
+            onClick={() => setTotalenModus("jaar")}
+          >
+            Dit jaar
+          </button>
+          <button
+            className={`btn${totalenModus === "aangepast" ? " primary" : ""}`}
+            onClick={() => setTotalenModus("aangepast")}
+          >
+            Aangepaste periode
+          </button>
+        </div>
+
+        {totalenModus === "aangepast" && (
+          <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+            <div className="field" style={{ flex: 1 }}>
+              <label>Van</label>
+              <input type="date" value={aangepastStart} onChange={(e) => setAangepastStart(e.target.value)} />
+            </div>
+            <div className="field" style={{ flex: 1 }}>
+              <label>Tot en met</label>
+              <input type="date" value={aangepastEind} onChange={(e) => setAangepastEind(e.target.value)} />
+            </div>
+          </div>
+        )}
+
+        <p style={{ fontSize: 12, color: "var(--tx3)", marginTop: -6 }}>
+          Periode: {totalenPeriode.start} t/m {totalenPeriode.eindWeergave}
+        </p>
+
+        <div style={{ fontSize: 13, color: "var(--tx2)", lineHeight: 1.9 }}>
+          Calls totaal: <strong>{totalenPeriode.callsTotaal}</strong> — waarvan kwalitatief:{" "}
+          <strong>{totalenPeriode.callsKwalitatief}</strong> (gem. {totalenPeriode.gemMinuten} min)
+          <br />
+          Visits uit calls: <strong>{totalenPeriode.visitsJa}</strong> ja, {totalenPeriode.visitsNee} nee
+          {totalenPeriode.visitsTeBevestigen > 0 ? `, ${totalenPeriode.visitsTeBevestigen} te bevestigen` : ""}
+          <br />
+          Bezoeken gelogd: <strong>{totalenPeriode.bezoeken}</strong>
+          <br />
+          Offertes verstuurd: <strong>{totalenPeriode.offertes}</strong>
+        </div>
       </div>
 
       <div className="card">
@@ -417,37 +551,6 @@ export default function ActiviteitPagina() {
         <button className="btn primary" disabled={visitBezig} onClick={visitToevoegen}>
           {visitBezig ? "Bezig..." : "Visit toevoegen"}
         </button>
-      </div>
-
-      <div className="card">
-        <h3 style={{ marginTop: 0 }}>Overzicht per week</h3>
-        {weekOverzicht.length === 0 && (
-          <p style={{ color: "var(--tx3)" }}>Nog geen calls, visits of offertes geregistreerd.</p>
-        )}
-        {weekOverzicht.map((w) => {
-          const bevestigd = w.visitsJa + w.visitsNee;
-          const conversie = bevestigd > 0 ? Math.round((w.visitsJa / bevestigd) * 100) : null;
-          const gemMinuten = w.callsTotaal > 0 ? Math.round((w.minutenTotaal / w.callsTotaal) * 10) / 10 : 0;
-          return (
-            <div key={w.week} style={{ marginBottom: 18, paddingBottom: 14, borderBottom: "1px solid var(--border)" }}>
-              <div style={{ fontWeight: 700, marginBottom: 6 }}>
-                Week van {w.weekStart} ({w.week})
-              </div>
-              <div style={{ fontSize: 13, color: "var(--tx2)", lineHeight: 1.7 }}>
-                Calls: {w.callsTotaal} — waarvan kwalitatief: {w.callsKwalitatief}/{doelKwalitatiefNum || "?"}{" "}
-                (gem. {gemMinuten} min)
-                <br />
-                Visits uit calls: {w.visitsJa} ja-antwoord uit {bevestigd} bevestigd
-                {conversie !== null ? ` (${conversie}% conversie)` : ""}
-                {w.teBevestigen > 0 ? `, nog ${w.teBevestigen} te bevestigen` : ""}
-                <br />
-                Bezoeken gelogd: {w.bezoeken}/{doelVisitsNum || "?"}
-                <br />
-                Offertes verstuurd: {w.offertes}/{doelOffertesNum || "?"}
-              </div>
-            </div>
-          );
-        })}
       </div>
 
       <div className="card">
